@@ -40,7 +40,7 @@ public class MyBot : IChessBot
     Move rootBestMove;
     public Move Think(Board board, Timer timer)
     {
-        var (globalDepth, score) = (0, 0);
+        var globalDepth = 0;
 
         // Negamax Search Algorithm
         int Negamax(int depth, int ply, int alpha, int beta)
@@ -118,7 +118,7 @@ public class MyBot : IChessBot
                 board.MakeMove(move);
 
                 // Late Move Reduction
-                score = board.IsInCheckmate() ? 30000 - ply : board.IsDraw() ? 0 : -Negamax(depth - (moves > 4 && depth > 3 ? 2 : 1), ply + 1, -beta, -alpha);
+                int score = board.IsInCheckmate() ? 30000 - ply : board.IsDraw() ? 0 : -Negamax(depth - (moves > 4 && depth > 3 ? 2 : 1), ply + 1, -beta, -alpha);
                 board.UndoMove(move);
 
 
@@ -146,11 +146,9 @@ public class MyBot : IChessBot
 
                 // Aspiration window search
                 // Pawn value is ~23 so half of that would be ~12 which is our starting window
-                int alpha = score - 12, beta = score + 12;
+                int score = Negamax(globalDepth, 0, -12, 12); ;
 
-                score = Negamax(globalDepth, 0, alpha, beta);
-
-                if (alpha >= score || score >= beta)
+                if (-12 >= score || score >= 12)
                     // Immediately abandon aspiration window search
                     Negamax(globalDepth, 0, -100000, 100000);
 

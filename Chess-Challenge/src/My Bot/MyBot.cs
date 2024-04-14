@@ -46,7 +46,7 @@ public class MyBot : IChessBot
         int Negamax(int depth, int ply, int alpha, int beta)
         {
             // Hard bound time management
-            if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 10) throw null;
+            if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20) throw null;
 
             // PSQTs and piece values tuned using texel tuner and scaled to 0-255
             var (key, tScore, moves, isQuise, packedVals) = (board.ZobristKey % 8388608, 0, 0, depth < 1, new[] {
@@ -146,10 +146,10 @@ public class MyBot : IChessBot
                 {
 
                     // Aspiration window search
-                    // Pawn value is ~23 so half of that would be ~12 which is our starting window
-                    int score = Negamax(globalDepth, 0, -12, 12); ;
+                    // Pawn value is ~56 so half of that would be ~23 which is our starting window
+                    int score = Negamax(globalDepth, 0, -23, 23); ;
 
-                    if (-12 >= score || score >= 12)
+                    if (-23 >= score || score >= 23)
                         // Immediately abandon aspiration window search
                         Negamax(globalDepth, 0, -100000, 100000);
 

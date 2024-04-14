@@ -2,7 +2,7 @@
 
 TokenStealer [a 400 token engine]
 -------------
-Tokens Used: 388/400
+Tokens Used: 400/400
 
 Features:
     Search:
@@ -25,7 +25,7 @@ Features:
         - MVV-LVA move ordering
         - TT moves
     Time Management:
-        - Hard bound time management
+        - Hard and Soft bounds
 
  */
 
@@ -46,7 +46,7 @@ public class MyBot : IChessBot
         int Negamax(int depth, int ply, int alpha, int beta)
         {
             // Hard bound time management
-            if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 40) throw null;
+            if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 10) throw null;
 
             // PSQTs and piece values tuned using texel tuner and scaled to 0-255
             var (key, tScore, moves, isQuise, packedVals) = (board.ZobristKey % 8388608, 0, 0, depth < 1, new[] {
@@ -138,25 +138,27 @@ public class MyBot : IChessBot
             return alpha;
         }
 
+        do
 
-        try
-        {
-            for (; ; ++globalDepth)
+            try
             {
+                for (; ; ++globalDepth)
+                {
 
-                // Aspiration window search
-                // Pawn value is ~23 so half of that would be ~12 which is our starting window
-                int score = Negamax(globalDepth, 0, -12, 12); ;
+                    // Aspiration window search
+                    // Pawn value is ~23 so half of that would be ~12 which is our starting window
+                    int score = Negamax(globalDepth, 0, -12, 12); ;
 
-                if (-12 >= score || score >= 12)
-                    // Immediately abandon aspiration window search
-                    Negamax(globalDepth, 0, -100000, 100000);
+                    if (-12 >= score || score >= 12)
+                        // Immediately abandon aspiration window search
+                        Negamax(globalDepth, 0, -100000, 100000);
+
+                }
 
             }
-
-        }
-        //Console.WriteLine($"info depth {globalDepth} time {timer.MillisecondsElapsedThisTurn} score cp {score} nodes {nodes} nps {Convert.ToInt32(1000 * (ulong)nodes / ((ulong)timer.MillisecondsElapsedThisTurn + 1))} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
-        catch { }
+            //Console.WriteLine($"info depth {globalDepth} time {timer.MillisecondsElapsedThisTurn} score cp {score} nodes {nodes} nps {Convert.ToInt32(1000 * (ulong)nodes / ((ulong)timer.MillisecondsElapsedThisTurn + 1))} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
+            catch { }
+        while (timer.MillisecondsElapsedThisTurn <= timer.MillisecondsRemaining / 40);
 
         return rootBestMove;
     }

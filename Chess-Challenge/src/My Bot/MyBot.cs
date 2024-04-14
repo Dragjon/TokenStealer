@@ -106,7 +106,7 @@ public class MyBot : IChessBot
             }
 
             // Reverse Futility Pruning
-            else if (tScore - 75 * depth >= beta) return tScore;
+            else if (tScore - 100 * depth >= beta) return tScore;
 
             // Check Extension
             if (board.IsInCheck()) depth++;
@@ -145,10 +145,9 @@ public class MyBot : IChessBot
 
                 // Aspiration window search
                 // Pawn value is ~23 so half of that would be ~12 which is our starting window
-                for (; ;)  
+                for (; ; )
                 {
-                    int alpha = score - window,
-                        beta = score + window;
+                    int alpha = score - window, beta = score + window;
 
                     score = Negamax(globalDepth, 0, alpha, beta);
 

@@ -2,11 +2,11 @@
 
 TokenStealer [a 400 token engine]
 -------------
-Tokens Used: 400/400
+Tokens Used: 399/400
 
 Features:
     Search:
-        - Aspiration Window Negamax search
+        - Aspiration Window Negamax search (Abandon ASP when not in bounds)
         - Iterative Deepening
         - Quiescence search
     Evaluation:
@@ -40,7 +40,7 @@ public class MyBot : IChessBot
     Move rootBestMove;
     public Move Think(Board board, Timer timer)
     {
-        var (globalDepth, score, window) = (0, 0, 12);
+        var (globalDepth, score) = (0, 0);
 
         // Negamax Search Algorithm
         int Negamax(int depth, int ply, int alpha, int beta)
@@ -142,21 +142,19 @@ public class MyBot : IChessBot
         try
         {
             for (; ; ++globalDepth)
+            {
 
                 // Aspiration window search
                 // Pawn value is ~23 so half of that would be ~12 which is our starting window
-                for (; ; )
-                {
-                    int alpha = score - window, beta = score + window;
+                int alpha = score - 12, beta = score + 12;
 
-                    score = Negamax(globalDepth, 0, alpha, beta);
+                score = Negamax(globalDepth, 0, alpha, beta);
 
-                    if (alpha < score && score < beta)
-                        break;
+                if (alpha >= score || score >= beta)
+                    // Immediately abandon aspiration window search
+                    Negamax(globalDepth, 0, -100000, 100000);
 
-                    // If the score doesn't fall between our bounds we have to do a re-search with larger bounds 
-                    window *= 2;
-                }
+            }
 
         }
         //Console.WriteLine($"info depth {globalDepth} time {timer.MillisecondsElapsedThisTurn} score cp {score} nodes {nodes} nps {Convert.ToInt32(1000 * (ulong)nodes / ((ulong)timer.MillisecondsElapsedThisTurn + 1))} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");

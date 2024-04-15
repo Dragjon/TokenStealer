@@ -90,7 +90,7 @@ public class MyBot : IChessBot
                     int sq = BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard),
                         pieceIndex = (int)board.GetPiece(new(sq)).PieceType;
                     tScore += ((byte)(packedVals[pieceIndex + 5] >> ((isWhite ? sq : sq ^ 56) & 0b111000))
-                           + (byte)(packedVals[pieceIndex - 1] >> sq % 8 * 8)) * 6;
+                           + (byte)(packedVals[pieceIndex - 1] >> sq % 8 * 8)); //* 6;
 
 
                 }

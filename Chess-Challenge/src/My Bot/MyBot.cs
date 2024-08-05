@@ -1,164 +1,165 @@
-﻿/* 
-
-TokenStealer [a 400 token engine]
--------------
-Tokens Used: 400/400
-
-Features:
-    Search:
-        - Aspiration Window Negamax search (Abandon ASP when not in bounds)
-        - Iterative Deepening
-        - Quiescence search
-    Evaluation:
-        - Tuned Rank and File PSTS with texel tuner (Scaled to 0-255)
-        - Piece values included in PSTS
-        - Decompression code adapted from NOSPRT
-    Pruning:
-        - Alpha-Beta pruning
-        - Reverse Futility pruning
-        - Quiescence search Standing Pat pruning
-    Reductions:
-        - Late moves reductions
-    Extensions:
-        - Check extensions
-    Ordering:
-        - MVV-LVA move ordering
-        - TT moves
-    Time Management:
-        - Hard and Soft bounds
-
- */
-
-using System.Linq;
+﻿using System.Linq;
 using ChessChallenge.API;
+
+/*
+TokenStealer - My 400 token chess engine
+Basic features:
+- Fail-soft Negamax search
+- Alphabeta pruning
+- TT move ordering
+- "MVV-LVA" ordering
+- Reverse futility pruning (static nmp)
+- Check extension
+- Late moves reduction
+- Capture-only Quiescence search combined with negamax
+- Stand-pat pruning in QSearch
+- General compressed positional tables and piece values for eval
+- Hard and soft bounds time management
+*/
+
 public class MyBot : IChessBot
 {
 
-    //int nodes;
+    // Material Values Tuned offsetted by +33
+    // PESTO Mg: 0, 82, 337, 365, 477, 1025, 0
+    // PESTO Eg: 0, 94, 281, 297, 512,  936,  0
+    // Original average: 0, 88, 309, 331, 495, 981, 0
+    // Offsetted average: 0, 121, 342, 364, 528, 1014, 0
 
-    Move[] TT = new Move[8388608];
-    Move rootBestMove;
+    // A General Pesto Square Table For All Pieces Compressed offsetted by +33 to keep values positive
+    /* Original
+    -33, -6, -3, -4, 7, -9, 0, -10,
+    13, 26, 28, 30, 31, 43, 22, 10,
+    -2, 19, 22, 25, 27, 38, 32, 11,
+    -6, 5, 10, 17, 17, 20, 10, -1,
+    -15, 0, 4, 9, 9, 4, 4, -11,
+    -15, -5, 0, 0, 3, 2, 4, -11,
+    -19, -10, -5, -7, -3, 1, -2, -19,
+    -26, -11, -12, -12, -7, -14, -16, -24,
+     */
+
+    /* Offesetted
+     0, 27, 30, 29, 40, 24, 33, 23, 
+    46, 59, 61, 63, 64, 76, 55, 43, 
+    31, 52, 55, 58, 60, 71, 65, 44, 
+    27, 38, 43, 50, 50, 53, 43, 32, 
+    18, 33, 37, 42, 42, 37, 37, 22, 
+    18, 28, 33, 33, 36, 35, 37, 22, 
+    14, 23, 28, 26, 30, 34, 31, 14, 
+    7, 22, 21, 21, 26, 19, 17, 9,
+     */
+
+    Move[] TT = new Move[67108864];
     public Move Think(Board board, Timer timer)
     {
-        var globalDepth = 0;
+        var (globalDepth, rootBestMove) = (0, Move.NullMove);
 
         // Negamax Search Algorithm
-        int Negamax(int depth, int ply, int alpha, int beta)
+        int Negamax(int depth, int alpha, int beta, bool isRoot = false)
         {
-            // Hard bound time management
-            if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20) throw null;
+            // Timeout
+            if (globalDepth > 1 && timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 20)
+                throw null; // Suggested by Analog Hors in place of throw new Exception(); Because you are not allowed to throw null, which causes a null reference exception
 
-            // PSQTs and piece values tuned using texel tuner and scaled to 0-255
-            var (key, tScore, moves, isQuise, packedVals) = (board.ZobristKey % 8388608, 0, 0, depth < 1, new[] {
-                1664105450252474134ul, 5714874758031429454ul, // files then rank
-                6148914691236517205ul, 9332163775400411521ul,
-                18374403900871474685ul, 72339069014704384ul,
-                1666359449072571927ul, 5498703075429273422ul,
-                6076858201005184340ul, 9476562637459325056ul,
-                18374405000383036925ul, 566261389983744ul});
+            var (key, tScore, moves, isQSearch, packedVals, pceValues, max, notNodeIsCheck) =
+            (board.ZobristKey % 67108864,
+              10,
+              0,
+              depth < 1,
+              new[] {
+          1666639897670064896,
+          3114041506172582702,
+          3188908335155328031,
+          2318004922918577691,
+          1595722505998639378,
+          1595720281054321682,
+          1017569553491433230,
+          653324423689213447
+              },
+              new[] {
+          0,
+          121,
+          342,
+          364,
+          528,
+          1014,
+          0
+              },
+              -100000,
+              !board.IsInCheck()
+            );
 
-            // Visualization of tuned PST (scaled 0 - 255)
-            /*
-             
-              Files
-               A   B   C   D   E   F   G   H
-            { 22, 23, 23, 23, 23, 23, 24, 23 }, // Pawn
-            { 78, 79, 79, 80, 80, 80, 79, 79 }, // Knight
-            { 85, 85, 85, 85, 85, 85, 85, 85 }, // Bishop
-            { 129, 129, 130, 130, 130, 129, 130, 129 }, // Rook
-            { 253, 253, 254, 254, 254, 254, 254, 254 }, // Queen
-            { 0, 1, 1, 0, 0, 0, 1, 1 }, // King
-
-             Ranks
-               1   2   3   4   5   6   7   8
-            { 23, 22, 22, 22, 23, 25, 32, 23 }, // Pawn
-            { 78, 79, 79, 80, 80, 81, 79, 76 }, // Knight
-            { 84, 85, 85, 85, 86, 86, 85, 84 }, // Bishop
-            { 128, 128, 128, 129, 130, 131, 131, 131 }, // Rook
-            { 253, 253, 253, 254, 254, 255, 254, 254 }, // Queen
-            { 0, 0, 0, 1, 3, 3, 2, 0 }, // King
-           
-            */
-
-            foreach (bool isWhite in new[] { !board.IsWhiteToMove, board.IsWhiteToMove })
-            {
-                tScore = -tScore;
-                ulong bitboard = isWhite ? board.WhitePiecesBitboard : board.BlackPiecesBitboard;
-
-                while (bitboard != 0)
+            foreach (var pl in board.GetAllPieceLists())
+                foreach (var p in pl)
                 {
-                    int sq = BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard),
-                        pieceIndex = (int)board.GetPiece(new(sq)).PieceType;
-                    tScore += ((byte)(packedVals[pieceIndex + 5] >> ((isWhite ? sq : sq ^ 56) & 0b111000))
-                           + (byte)(packedVals[pieceIndex - 1] >> sq % 8 * 8)); //* 6;
-
+                    var square = p.Square;
+                    tScore +=
+                      (board.IsWhiteToMove ? 1 : -1) *
+                      (pl.IsWhitePieceList ? 1 : -1) *
+                      (
+                        ((int)packedVals[((square.Index) ^ (pl.IsWhitePieceList ? 56 : 0)) / 8] >> ((square.Index) & 56) & 0xFF) +
+                        pceValues[(int)p.PieceType]
+                      );
 
                 }
+
+            // Quiscence Search Stand Pat pruning
+            if (isQSearch)
+            {
+                max = tScore;
+                if (tScore >= beta)
+                    return beta;
+                if (alpha < tScore)
+                    alpha = tScore;
+            }
+            else
+            {
+                // Reverse Futility Pruning
+                if (notNodeIsCheck && tScore - 85 * depth >= beta)
+                    return tScore;
+
+                // Check Extension gained +49.2 elo
+                if (!notNodeIsCheck) depth++;
             }
 
-
-            if (isQuise)
+            foreach (Move move in board.GetLegalMoves(isQSearch).OrderByDescending(move => (
+              move == TT[key],
+              move.CapturePieceType,
+              0 - move.MovePieceType)))
             {
-                // Stand Pat pruning
-                if (tScore >= beta) return beta;
-
-                if (alpha < tScore) alpha = tScore;
-            }
-
-            // Reverse Futility Pruning
-            else if (tScore - 100 * depth >= beta) return tScore;
-
-            // Check Extension
-            if (board.IsInCheck()) depth++;
-
-            foreach (Move move in board.GetLegalMoves(isQuise).OrderByDescending(move => (move == TT[key], move.CapturePieceType, 0 - move.MovePieceType)))
-            {
-                moves++;
-                //nodes++;
                 board.MakeMove(move);
 
                 // Late Move Reduction
-                int score = board.IsInCheckmate() ? 30000 - ply : board.IsDraw() ? 0 : -Negamax(depth - (moves > 4 && depth > 3 ? 2 : 1), ply + 1, -beta, -alpha);
+                tScore = board.IsInCheckmate() ? 30000 : board.IsDraw() ? 0 : -Negamax(depth - (moves++ > 5 && !move.IsCapture && notNodeIsCheck ? 2 : 1), -beta, -alpha);
+
                 board.UndoMove(move);
 
-
-                if (score > alpha)
+                if (tScore > max)
                 {
-                    // If a move raises the alpha, add it to TT
                     TT[key] = move;
-                    alpha = score;
-                    if (ply == 0) rootBestMove = move;
-                }
+                    max = tScore;
 
-                // Apha/Beta Pruning
-                if (alpha >= beta) break;
+                    if (isRoot)
+                        rootBestMove = move;
+
+                    if (tScore > alpha)
+                        alpha = tScore;
+
+                    if (tScore >= beta)
+                        break;
+                }
 
             }
 
-            return alpha;
+            return max;
         }
 
-        do
-
-            try
-            {
-                for (; ; ++globalDepth)
-                {
-
-                    // Aspiration window search
-                    // Pawn value is ~56 so half of that would be ~23 which is our starting window
-                    int score = Negamax(globalDepth, 0, -23, 23); ;
-
-                    if (-23 >= score || score >= 23)
-                        // Immediately abandon aspiration window search
-                        Negamax(globalDepth, 0, -100000, 100000);
-
-                }
-
-            }
-            //Console.WriteLine($"info depth {globalDepth} time {timer.MillisecondsElapsedThisTurn} score cp {score} nodes {nodes} nps {Convert.ToInt32(1000 * (ulong)nodes / ((ulong)timer.MillisecondsElapsedThisTurn + 1))} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
-            catch { }
-        while (timer.MillisecondsElapsedThisTurn <= timer.MillisecondsRemaining / 40);
+        try
+        {
+            while (timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 5)
+                Negamax(++globalDepth, -100000, 100000, true);
+        }
+        catch { }
 
         return rootBestMove;
     }

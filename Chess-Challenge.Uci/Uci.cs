@@ -27,9 +27,8 @@ namespace Chess_Challenge.Cli
 
         private void HandleUci()
         {
-            Console.WriteLine("id name Tokenstealer V1 DEV");
-            Console.WriteLine("id author Chess123easy");
-            Console.WriteLine();
+            Console.WriteLine("id name Tokenstealer V1.1");
+            Console.WriteLine("id author Dragjon");
             Console.WriteLine("uciok");
         }
 
@@ -38,7 +37,7 @@ namespace Chess_Challenge.Cli
             var writingFen = false;
             var writingMoves = false;
             var fenBuilder = new StringBuilder();
-            
+
             for (var wordIndex = 0; wordIndex < words.Count; wordIndex++)
             {
                 var word = words[wordIndex];
